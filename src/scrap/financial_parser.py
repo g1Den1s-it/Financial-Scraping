@@ -52,10 +52,10 @@ class FinancialParser:
 
             data["url"] = f"{self.base_url}{article_link}"
             data["title"] = header_el.text
-            data["content"] = article_el.get_text()
+            data["content"] = str(article_el)
             data["create_at"] = datetime.strptime(date_val, '%Y-%m-%dT%H:%M:%S')
             data["scraped_at"] = datetime.utcnow()
-
+            
             self.article_data.append(data)
         
         return self.article_data
@@ -123,10 +123,8 @@ class FinancialParser:
             
 
             if publish_date > thirty_days_ago:
-                print(publish_date, thirty_days_ago, "return true")
                 return True
             else:
-                print(publish_date, thirty_days_ago, "return false")
                 return False
 
         except ValueError:
