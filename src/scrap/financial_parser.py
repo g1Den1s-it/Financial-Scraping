@@ -1,4 +1,5 @@
-import requests
+import httpx
+import asyncio
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
@@ -23,16 +24,16 @@ class FinancialParser:
         self.post_list_link = []
         self.article_data = []
     
-    def parsing_data(self) -> list[dict[str, str]]:
-        for article_link in self.post_list_link:
-            req = requests.get(f"{self.base_url}{article_link}", headers=self.headers)
+    async def __parsing_single_data(self, client, article_link) -> list[dict[str, str]]:
+        try:
+            req = await client.get(f"{self.base_url}{article_link}", headers=self.headers)
 
             soup = BeautifulSoup(req.text, 'lxml')
 
             subscribe_el = soup.find("a", id="charge-button")
 
             if subscribe_el:
-                continue
+                return None
 
             header_el = soup.find('h1', class_='o-topper__headline')
             subtitle_el = soup.find('div', class_='topper__standfirst')
@@ -58,50 +59,67 @@ class FinancialParser:
             
             self.article_data.append(data)
         
-        return self.article_data
+            return self.article_data
+        except Exception as e:
+            print(e)
 
-    def parsing(self, period: timedelta):
+    async def pars_post_data(self):
+        async with httpx.AsyncClient() as client:
+            tasks = []
+
+            for article_link in self.post_list_link:
+                tasks.append(self.__parsing_single_data(client, article_link))
+
+            
+            res = await asyncio.gather(*tasks)
+
+            self.article_data = [data for data in res if data is not None]
+
+            return self.article_data
+
+
+    async def parsing(self, period: timedelta):
         is_parsing = True
         next_page = ""
+        async with httpx.AsyncClient() as client:
+            while is_parsing:
+                if next_page:
+                    req = await client.get(f"{self.base_url}{self.start_page}{next_page}", headers=self.headers)
+                else:
+                    req = await client.get(f"{self.base_url}{self.start_page}", headers=self.headers)
 
-        while is_parsing:
-            if next_page:
-                req = requests.get(f"{self.base_url}{self.start_page}{next_page}", headers=self.headers)
-            else:
-                req = requests.get(f"{self.base_url}{self.start_page}", headers=self.headers)
+                soup = BeautifulSoup(req.text, "lxml")
+            
+                posts = soup.find_all('li', class_="o-teaser-collection__item o-grid-row")
 
-            soup = BeautifulSoup(req.text, "lxml")
-        
-            posts = soup.find_all('li', class_="o-teaser-collection__item o-grid-row")
+                for post in posts:
+                    if not post:
+                        continue
 
-            for post in posts:
-                if not post:
-                    continue
+                    try:
+                        if not self.__is_recent_article(post, period):
+                            is_parsing = False
+                            break
+                    except Exception as e:
+                        continue
+
+                    a = post.find('a', attrs={"data-trackable":"heading-link"})
+
+                    self.post_list_link.append(a.get("href"))
 
                 try:
-                    if not self.__is_recent_article(post, period):
+                    pagination = soup.find("div", class_="stream__pagination")
+
+                    pag_a = pagination.find('a', attrs={'data-trackable': 'next-page'})
+
+                    if not pag_a:
                         is_parsing = False
                         break
+                    
+                    next_page = pag_a.get("href")
                 except Exception as e:
-                    continue
-
-                a = post.find('a', attrs={"data-trackable":"heading-link"})
-
-                self.post_list_link.append(a.get("href"))
-
-            try:
-                pagination = soup.find("div", class_="stream__pagination")
-
-                pag_a = pagination.find('a', attrs={'data-trackable': 'next-page'})
-
-                if not pag_a:
-                    is_parsing = False
+                    print("exception:", str(e))
                     break
-                
-                next_page = pag_a.get("href")
-            except Exception as e:
-                print("exception:", str(e))
-                break
 
 
         
