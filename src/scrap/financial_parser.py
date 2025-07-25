@@ -1,10 +1,12 @@
 import httpx
 import asyncio
 import logging
+
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
+from src.scrap.schemas import PostSchema
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,7 @@ class FinancialParser:
             header_el = soup.find('h1', class_='o-topper__headline')
             subtitle_el = soup.find('div', class_='topper__standfirst')
 
-            authors_el = soup.find('a', attrs={"data-trackable": "author"})
+            authors_els = soup.find_all('a', attrs={"data-trackable": "author"})
 
             article_el = soup.find('article', id="article-body")
 
@@ -53,18 +55,18 @@ class FinancialParser:
 
             if '.' in date_val:
                 date_val = date_val.split('.')[0]
-
-            data = {}
-
-            data["url"] = f"{self.base_url}{article_link}"
-            data["title"] = header_el.text
-            data["content"] = str(article_el)
-            data["create_at"] = datetime.strptime(date_val, '%Y-%m-%dT%H:%M:%S')
-            data["scraped_at"] = datetime.utcnow()
             
-            self.article_data.append(data)
+            post = PostSchema(
+                url=f"{self.base_url}{article_link}",
+                author="".join([author.text for author in authors_els]),
+                title=header_el.text,
+                content=str(article_el),
+                published_at=datetime.strptime(date_val, '%Y-%m-%dT%H:%M:%S'),
+                scraped_at=datetime.utcnow()
+            )
+
         
-            return self.article_data
+            return post
         except httpx.TimeoutException:
             logger.error(f"Timeout occurred while fetching {article_link}")
             return None

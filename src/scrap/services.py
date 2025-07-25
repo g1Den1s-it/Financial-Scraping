@@ -1,8 +1,14 @@
+import logging
 from sqlalchemy import Select
+from sqlalchemy.exc import IntegrityError
 
 from src.scrap.schemas import PostSchema
 
 from src.scrap.models import Post
+
+
+logger = logging.getLogger(__name__)
+
 
 async def get_all_post(max_post, db) -> list[PostSchema] | Exception:
     try:
@@ -16,8 +22,33 @@ async def get_all_post(max_post, db) -> list[PostSchema] | Exception:
             PostSchema.model_validate(post, from_attributes=True)
             for post in list_post
         ]
-
+        logger.info("Fetched data from database successful")
         return validated_posts   
-
     except Exception as e:
+        logger.error("Can not fetched data from database: " + str(e))
         return e
+
+
+async def create_post(data: PostSchema ,db):
+    try:
+        post = Post(
+            url=data.url,
+            title=data.title,
+            content=data.content,
+            author=data.author,
+            published_at=data.published_at,
+            scraped_at=data.scraped_at
+        )
+
+        db.add(post)
+        await db.commit()
+
+        logger.info("Saved data in database successful")
+        return data
+    except IntegrityError as e:
+        logger.error("Can not save data in database due to unique constraint violation.")
+        await db.rollback()
+    except Exception as e:
+        logger.error("Can not save data in database: " + str(e))
+        return e
+        
