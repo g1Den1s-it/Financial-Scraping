@@ -12,6 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 class FinancialParser:
+    """A class for asynchronously scraping articles from the Financial Times website.
+
+    This class handles the collection of article links from the '/world' section,
+    filters them by a specified time period, and extracts detailed information
+    (e.g., title, author, content) for each article. It uses asynchronous HTTP
+    requests for efficiency and handles paywalled content and errors gracefully.
+
+    Attributes:
+        headers (dict): HTTP headers to mimic a browser request.
+        base_url (str): Base URL of the Financial Times website.
+        start_page (str): Starting page for scraping (e.g., '/world').
+        post_list_link (list): List of article URLs collected during scraping.
+        article_data (list): List of parsed article data as PostSchema objects.
+    """
     def __init__(self):
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -32,6 +46,22 @@ class FinancialParser:
         self.article_data = []
     
     async def __parsing_single_data(self, client, article_link) -> list[dict[str, str]]:
+        """Parse a single article page to extract its details.
+
+        Args:
+            client (httpx.AsyncClient): The HTTP client for making requests.
+            article_link (str): The relative URL of the article (e.g., '/content/123').
+
+        Returns:
+            PostSchema | None: A PostSchema object containing article details, or None if
+                the article is paywalled or an error occurs.
+
+        Raises:
+            httpx.TimeoutException: If the request times out.
+            httpx.HTTPStatusError: If an HTTP error occurs (e.g., 404, 403).
+            httpx.RequestError: If a network error occurs.
+            Exception: For unexpected errors during parsing.
+        """
         try:
             req = await client.get(f"{self.base_url}{article_link}", headers=self.headers)
 
@@ -82,6 +112,19 @@ class FinancialParser:
 
 
     async def pars_post_data(self):
+        """Parse all collected article links and extract their details.
+
+        This method processes the URLs in `self.post_list_link` concurrently,
+        storing valid results in `self.article_data`.
+
+        Returns:
+            list[PostSchema]: A list of PostSchema objects containing article details.
+
+        Raises:
+            httpx.TimeoutException: If a request times out.
+            httpx.HTTPStatusError: If an HTTP error occurs.
+            httpx.RequestError: If a network error occurs.
+        """
         async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
             logger.info(f"Fetched: {len(self.post_list_link)} posts link")
             tasks = []
@@ -98,6 +141,18 @@ class FinancialParser:
 
 
     async def parsing(self, period: timedelta):
+        """Scrape article links from the '/world' section within a specified time period.
+
+        This method paginates through the website, collecting article URLs that meet
+        the time period criteria, and stores them in `self.post_list_link`.
+
+        Args:
+            period (timedelta): The time period for filtering recent articles (e.g., 30 days).
+
+        Raises:
+            httpx.RequestError: If a network error occurs during pagination.
+            Exception: For unexpected errors during parsing or pagination.
+        """
         is_parsing = True
         next_page = ""
         async with httpx.AsyncClient() as client:
@@ -143,6 +198,18 @@ class FinancialParser:
 
         
     def __is_recent_article(self, post, period):
+        """Check if an article's publication date is within the specified time period.
+
+        Args:
+            post (BeautifulSoup): The BeautifulSoup element representing an article teaser.
+            period (timedelta): The time period to check against (e.g., 30 days).
+
+        Returns:
+            bool: True if the article is within the time period, False otherwise.
+
+        Raises:
+            ValueError: If the publication date cannot be parsed.
+        """
         time = post.find('time', class_='o3-type-label o-date')
 
         date_val = time.get("datetime")
