@@ -2,7 +2,7 @@ from celery import Celery
 from celery.schedules import crontab
 
 
-celery_app = Celery('app', broker="redis://localhost:6379/0", backend="redis://localhost:6379/1")
+celery_app = Celery('app', broker="redis://redis:6379/0", backend="redis://redis:6379/1")
 
 
 celery_app.conf.timezone = 'Europe/Kyiv'
@@ -15,3 +15,5 @@ celery_app.conf.beat_schedule = {
         'options': {'queue': 'hourly_crawls'},
     },   
 }
+
+celery_app.autodiscover_tasks(['src.scrap.tasks'], force=True)

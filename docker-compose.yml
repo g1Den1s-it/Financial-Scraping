@@ -16,7 +16,7 @@ services:
     depends_on:
       - redis
       - postgres
-    command: sh -c "celery -A src.scrap.celery worker --loglevel=info -P solo & celery -A src.scrap.tasks beat --loglevel=info"
+    command: sh -c "celery -A src.scrap.celery worker --loglevel=info -P gevent & celery -A src.scrap.tasks beat --loglevel=info"
     build: 
       context: .
       dockerfile: Dockerfile

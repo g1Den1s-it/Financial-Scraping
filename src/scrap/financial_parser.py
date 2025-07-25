@@ -1,8 +1,13 @@
 import httpx
 import asyncio
+import logging
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
+
+
+logger = logging.getLogger(__name__)
+
 
 class FinancialParser:
     def __init__(self):
@@ -60,11 +65,23 @@ class FinancialParser:
             self.article_data.append(data)
         
             return self.article_data
+        except httpx.TimeoutException:
+            logger.error(f"Timeout occurred while fetching {article_link}")
+            return None
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error {e.response.status_code} for {article_link}: {e.response.text}")
+            return None
+        except httpx.RequestError as e:
+            logger.error(f"Request error for {article_link}: {e}")
+            return None
         except Exception as e:
-            print(e)
+            logger.exception(f"__parsing_single_data - Unexpected error for {article_link}: {e}")
+            return None
+
 
     async def pars_post_data(self):
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
+            logger.info(f"Fetched: {len(self.post_list_link)} posts link")
             tasks = []
 
             for article_link in self.post_list_link:
@@ -118,7 +135,7 @@ class FinancialParser:
                     
                     next_page = pag_a.get("href")
                 except Exception as e:
-                    print("exception:", str(e))
+                    logger.error(f"parsing - Error: {e}")
                     break
 
 
