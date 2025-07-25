@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy import Select
+from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 
 from src.scrap.schemas import PostSchema
@@ -10,9 +10,9 @@ from src.scrap.models import Post
 logger = logging.getLogger(__name__)
 
 
-async def get_all_post(max_post, db) -> list[PostSchema] | Exception:
+async def get_all_post(db) -> list[PostSchema] | Exception:
     try:
-        query = Select(Post).limit(max_post)
+        query = Select(Post)
 
         res = await db.execute(query)
         
@@ -27,6 +27,10 @@ async def get_all_post(max_post, db) -> list[PostSchema] | Exception:
     except Exception as e:
         logger.error("Can not fetched data from database: " + str(e))
         return e
+
+
+def get_all_post_query():
+    return select(Post)
 
 
 async def create_post(data: PostSchema ,db):

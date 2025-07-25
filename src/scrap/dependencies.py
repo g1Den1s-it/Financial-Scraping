@@ -13,3 +13,7 @@ async def valid_list_post(db:AsyncSession = Depends(get_db_session)):
             status_code=500)
 
     return list_post
+
+
+def valid_all_post_query():
+    return services.get_all_post_query()
